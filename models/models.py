@@ -78,3 +78,54 @@ class Goal(db.Model):
     progress = db.Column(db.Integer, default=0, nullable=False)
     status = db.Column(db.String(20), default="active", nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+class Notification(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    title = db.Column(db.String(160), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    type = db.Column(db.String(30), default="info", nullable=False)
+    is_read = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    user = db.relationship("User", backref=db.backref("notifications", cascade="all, delete-orphan"))
+
+class StudyTarget(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    subject = db.Column(db.String(120), nullable=False)
+    target_hours = db.Column(db.Float, nullable=False)
+    start_date = db.Column(db.Date, nullable=False)
+    end_date = db.Column(db.Date, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    user = db.relationship("User", backref=db.backref("study_targets", cascade="all, delete-orphan"))
+
+class Achievement(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    badge_name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.String(240), nullable=False)
+    points = db.Column(db.Integer, default=0, nullable=False)
+    earned_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    user = db.relationship("User", backref=db.backref("achievements", cascade="all, delete-orphan"))
+
+class Budget(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, unique=True)
+    monthly_amount = db.Column(db.Float, nullable=False, default=0)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    user = db.relationship("User", backref=db.backref("budget", uselist=False, cascade="all, delete-orphan"))
+
+class Announcement(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(160), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    priority = db.Column(db.String(20), default="normal", nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    expiry_date = db.Column(db.Date, nullable=False)
+
+class ProductivityScore(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    score = db.Column(db.Integer, nullable=False)
+    recorded_date = db.Column(db.Date, default=date.today, nullable=False)
+    user = db.relationship("User", backref=db.backref("productivity_scores", cascade="all, delete-orphan"))

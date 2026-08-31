@@ -11,6 +11,14 @@ Intelligent Student Life Tracking & Management System, built as a production-sty
 - Printable reports for study, attendance, expenses, tasks, and goals.
 - Admin dashboard, student activation/deactivation, and system-wide record views.
 
+## Smart Tracker 2.0 Features
+
+- Smart calendar API and activity view for tasks, study sessions, and goal deadlines.
+- In-app notifications with unread counts, read-all, delete, and rule-based reminders.
+- Productivity score from task completion, study time, attendance, goal progress, and consistency.
+- Study targets, activity streaks, achievements, points, smart recommendations, and budget tracking.
+- Responsive analytics endpoints, Chart.js-ready trend data, PDF reports, and admin announcements.
+
 ## Technology
 
 Python 3.12+, Flask, Flask-SQLAlchemy, SQLAlchemy ORM, MySQL/PyMySQL, Jinja2, Bootstrap 5, Chart.js, HTML5, CSS3, and JavaScript.
@@ -66,7 +74,29 @@ routes/                 Feature and admin blueprints
 templates/              Jinja pages and CRUD forms
 static/css, static/js/  Responsive styles and Chart.js integration
 database/init_db.py     Schema creation and sample data
+services.py             Productivity, streak, recommendation, and notification logic
+routes/smart.py         Smart Tracker 2.0 routes, APIs, PDF exports, and announcements
 ```
+
+## Reports and Downloads
+
+After signing in, PDF reports are available at `/reports/overall.pdf`, `/reports/tasks.pdf`, `/reports/study.pdf`, `/reports/attendance.pdf`, `/reports/expenses.pdf`, `/reports/goals.pdf`, and `/reports/productivity.pdf`.
+
+## Testing
+
+The project can be checked with:
+
+```powershell
+python -m py_compile app.py common.py services.py routes\*.py models\*.py database\init_db.py
+python database\init_db.py
+python app.py
+```
+
+The application preserves existing data because initialization uses `create_all()` and never drops tables. New Smart Tracker 2.0 tables are created additively.
+
+## Screenshots
+
+The responsive landing page, authenticated dashboard, Smart Calendar, Productivity Score, Notifications, Study Targets, Budget, and Admin Announcements views are available after running the application. Capture screenshots from the browser at desktop and mobile widths for the final project report.
 
 ## Future enhancements
 
