@@ -1,1 +1,73 @@
-# SMART-TRACKER
+# SMART TRACKER
+
+Intelligent Student Life Tracking & Management System, built as a production-style TYBSc Computer Science final-year major project.
+
+## Features
+
+- Student registration, secure login, sessions, profile, and role-based admin access.
+- Dashboard metrics and Chart.js study visualization with rule-based recommendations.
+- CRUD task tracker with search, status/priority filters, due dates, and overdue highlighting.
+- Study, attendance, expense, and goal trackers with validation and progress views.
+- Printable reports for study, attendance, expenses, tasks, and goals.
+- Admin dashboard, student activation/deactivation, and system-wide record views.
+
+## Technology
+
+Python 3.12+, Flask, Flask-SQLAlchemy, SQLAlchemy ORM, MySQL/PyMySQL, Jinja2, Bootstrap 5, Chart.js, HTML5, CSS3, and JavaScript.
+
+## Requirements
+
+Install Python 3.12 or newer and MySQL 8.0 or newer. On Windows, use PowerShell or the VS Code integrated terminal.
+
+## Installation
+
+```powershell
+cd path\to\SMART-TRACKER
+py -3.12 -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+copy .env.example .env
+```
+
+If PowerShell blocks activation, run `Set-ExecutionPolicy -Scope Process Bypass` in that terminal.
+
+## MySQL setup
+
+```sql
+CREATE DATABASE smart_tracker CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'smart_user'@'localhost' IDENTIFIED BY 'strong_password';
+GRANT ALL PRIVILEGES ON smart_tracker.* TO 'smart_user'@'localhost';
+FLUSH PRIVILEGES;
+```
+
+Set `DATABASE_URL=mysql+pymysql://smart_user:strong_password@localhost/smart_tracker` in `.env`. The default example uses SQLite for a zero-configuration evaluation run.
+
+## Initialize and run
+
+```powershell
+python database\init_db.py
+python app.py
+```
+
+Open `http://127.0.0.1:5000`.
+
+## Demo credentials
+
+- Admin: `admin@smarttracker.local` / `Admin@12345`
+- Student: `student@smarttracker.local` / `Student@12345`
+
+## Folder structure
+
+```text
+app.py, config.py, requirements.txt, .env.example
+models/                 SQLAlchemy entities and relationships
+routes/                 Feature and admin blueprints
+templates/              Jinja pages and CRUD forms
+static/css, static/js/  Responsive styles and Chart.js integration
+database/init_db.py     Schema creation and sample data
+```
+
+## Future enhancements
+
+Add CSRF protection with Flask-WTF, Alembic migrations, email reminders, recurring tasks, calendar integrations, and richer export formats.
