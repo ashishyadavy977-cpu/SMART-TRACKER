@@ -1,5 +1,6 @@
 from datetime import date, datetime, timedelta
-from io import BytesIO
+from csv import writer
+from io import BytesIO, StringIO
 from flask import Blueprint, jsonify, flash, make_response, redirect, render_template, request, session, url_for
 from common import admin_required, db, login_required, parse_date, student_query
 from models import Achievement, Announcement, Attendance, Budget, Expense, Goal, Notification, ProductivityScore, StudySession, StudyTarget, Task, User
@@ -18,6 +19,17 @@ def calendar_events():
     events += [{"id": f"goal-{x.id}", "title": f"Goal: {x.title}", "start": x.target_date.isoformat(), "color": "#75873b"} for x in student_query(Goal).all()]
     events += [{"id": f"study-{x.id}", "title": f"Study: {x.subject}", "start": x.study_date.isoformat(), "color": "#4d8c7b"} for x in student_query(StudySession).all()]
     return jsonify(events)
+
+@smart_bp.post("/api/calendar/tasks/<int:task_id>")
+@login_required
+def move_calendar_task(task_id):
+    task = student_query(Task).filter_by(id=task_id).first_or_404()
+    due_date = parse_date(request.json.get("date") if request.is_json else request.form.get("date"))
+    if not due_date:
+        return jsonify({"error": "A valid date is required."}), 400
+    task.due_date = due_date
+    db.session.commit()
+    return jsonify({"id": task.id, "date": task.due_date.isoformat()})
 
 @smart_bp.route("/notifications")
 @login_required
@@ -98,6 +110,36 @@ def pdf_report(report_type):
         values = model.query.filter_by(user_id=user.id).all(); pdf.drawString(70, y, f"{label}: {calc(values)}"); y -= 25
     if report_type == "productivity": pdf.drawString(70, y, f"Productivity score: {score_for(user.id)}/100")
     pdf.showPage(); pdf.save(); buffer.seek(0); return make_response(buffer.getvalue(), 200, {"Content-Type": "application/pdf", "Content-Disposition": f"attachment; filename=smart_tracker_{report_type}.pdf"})
+
+@smart_bp.route("/reports/<report_type>.csv")
+@login_required
+def csv_report(report_type):
+    allowed = {"overall", "tasks", "study", "attendance", "expenses", "goals", "productivity"}
+    if report_type not in allowed:
+        return make_response("Report not found", 404)
+    user_id = session["user_id"]
+    sections = {
+        "tasks": [("Title", "Description", "Priority", "Due date", "Status"), [(x.title, x.description or "", x.priority, x.due_date, x.status) for x in student_query(Task).order_by(Task.due_date).all()]],
+        "study": [("Subject", "Topic", "Duration", "Date", "Notes"), [(x.subject, x.topic or "", x.duration, x.study_date, x.notes or "") for x in student_query(StudySession).order_by(StudySession.study_date).all()]],
+        "attendance": [("Subject", "Total classes", "Attended", "Absent", "Percentage"), [(x.subject, x.total_classes, x.attended_classes, x.absent_classes, x.percentage) for x in student_query(Attendance).all()]],
+        "expenses": [("Date", "Category", "Amount", "Description"), [(x.expense_date, x.category, x.amount, x.description or "") for x in student_query(Expense).order_by(Expense.expense_date).all()]],
+        "goals": [("Title", "Target date", "Progress", "Status", "Description"), [(x.title, x.target_date, x.progress, x.status, x.description or "") for x in student_query(Goal).order_by(Goal.target_date).all()]],
+    }
+    output = StringIO(); csv_writer = writer(output)
+    if report_type in sections:
+        headers, rows = sections[report_type]; csv_writer.writerow(headers); csv_writer.writerows(rows)
+    else:
+        csv_writer.writerow(("Metric", "Value"))
+        records = {"Tasks": Task, "Study sessions": StudySession, "Attendance records": Attendance, "Expenses": Expense, "Goals": Goal}
+        for label, model in records.items():
+            values = model.query.filter_by(user_id=user_id).all()
+            value = round(sum(x.duration for x in values), 1) if model is StudySession else round(sum(x.amount for x in values), 2) if model is Expense else len(values)
+            csv_writer.writerow((label, value))
+        if report_type == "productivity": csv_writer.writerow(("Productivity score", score_for(user_id)))
+    response = make_response(output.getvalue(), 200)
+    response.headers["Content-Type"] = "text/csv; charset=utf-8"
+    response.headers["Content-Disposition"] = f"attachment; filename=smart_tracker_{report_type}.csv"
+    return response
 
 @smart_bp.route("/admin/announcements", methods=["GET", "POST"])
 @admin_required

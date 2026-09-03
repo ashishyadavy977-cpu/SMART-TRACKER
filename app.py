@@ -1,7 +1,10 @@
-from datetime import date, timedelta
-from flask import Flask, flash, redirect, render_template, request, session, url_for
+from datetime import date, datetime, timedelta
+import json
+from flask import Flask, flash, redirect, make_response, render_template, request, session, url_for
+from werkzeug.utils import secure_filename
+from pathlib import Path
 from config import Config
-from models import Announcement, Attendance, Expense, Goal, Notification, StudySession, Task, User
+from models import Announcement, Attendance, Expense, Goal, Notification, StudySession, Task, User, UserProfile
 from common import db, login_required, parse_date, student_query
 from services import record_score, refresh_notifications, score_label, streaks
 
@@ -75,6 +78,71 @@ def profile():
     if request.method == "POST":
         user.name = request.form.get("name", user.name).strip(); user.course = request.form.get("course", user.course).strip(); user.semester = request.form.get("semester", user.semester).strip(); db.session.commit(); flash("Profile updated.", "success"); return redirect(url_for("profile"))
     return render_template("profile.html", user=user)
+
+@app.post("/profile/password")
+@login_required
+def change_password():
+    user = current_user()
+    if not user.check_password(request.form.get("current_password", "")):
+        flash("Current password is incorrect.", "danger")
+    elif len(request.form.get("new_password", "")) < 8:
+        flash("New password must be at least 8 characters.", "danger")
+    elif request.form.get("new_password") != request.form.get("confirm_password"):
+        flash("New passwords do not match.", "danger")
+    else:
+        user.set_password(request.form["new_password"]); db.session.commit(); flash("Password changed successfully.", "success")
+    return redirect(url_for("profile"))
+
+@app.post("/profile/photo")
+@login_required
+def upload_profile_photo():
+    photo = request.files.get("photo")
+    allowed = {"jpg", "jpeg", "png", "webp"}
+    extension = photo.filename.rsplit(".", 1)[-1].lower() if photo and photo.filename and "." in photo.filename else ""
+    if not photo or extension not in allowed:
+        flash("Upload a JPG, PNG, or WEBP image.", "danger")
+        return redirect(url_for("profile"))
+    upload_dir = Path(app.static_folder) / "uploads"; upload_dir.mkdir(exist_ok=True)
+    filename = f"profile-{session['user_id']}.{extension}"; photo.save(upload_dir / secure_filename(filename))
+    profile_record = UserProfile.query.filter_by(user_id=session["user_id"]).first() or UserProfile(user_id=session["user_id"])
+    profile_record.photo_filename = filename; db.session.add(profile_record); db.session.commit(); flash("Profile photo updated.", "success")
+    return redirect(url_for("profile"))
+
+@app.get("/backup/export")
+@login_required
+def export_backup():
+    user_id = session["user_id"]
+    models = {"tasks": Task, "study_sessions": StudySession, "attendance": Attendance, "expenses": Expense, "goals": Goal, "notifications": Notification}
+    snapshot = {"version": 1, "exported_at": datetime.utcnow().isoformat(), "records": {}}
+    for name, model in models.items():
+        snapshot["records"][name] = [{column.name: (field_value.isoformat() if isinstance(field_value, (date, datetime)) else field_value) for column in model.__table__.columns if column.name != "user_id" for field_value in [getattr(record, column.name)]} for record in model.query.filter_by(user_id=user_id).all()]
+    response = make_response(json.dumps(snapshot, indent=2), 200)
+    response.headers["Content-Type"] = "application/json; charset=utf-8"
+    response.headers["Content-Disposition"] = "attachment; filename=smart_tracker_backup.json"
+    return response
+
+@app.post("/backup/restore")
+@login_required
+def restore_backup():
+    upload = request.files.get("backup")
+    try:
+        snapshot = json.loads(upload.read()) if upload else None
+        records = snapshot["records"] if snapshot and snapshot.get("version") == 1 else None
+        if not isinstance(records, dict): raise ValueError
+        models = {"tasks": Task, "study_sessions": StudySession, "attendance": Attendance, "expenses": Expense, "goals": Goal, "notifications": Notification}
+        user_id = session["user_id"]
+        for name, model in models.items():
+            model.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+            for item in records.get(name, []):
+                values = {column.name: value for column, value in ((column, item.get(column.name)) for column in model.__table__.columns) if column.name not in {"id", "user_id"} and value is not None}
+                for column in model.__table__.columns:
+                    if column.name in values and column.type.python_type in {date, datetime}:
+                        values[column.name] = column.type.python_type.fromisoformat(values[column.name])
+                db.session.add(model(user_id=user_id, **values))
+        db.session.commit(); flash("Backup restored successfully.", "success")
+    except (TypeError, ValueError, KeyError, json.JSONDecodeError):
+        db.session.rollback(); flash("The backup file is invalid.", "danger")
+    return redirect(url_for("profile"))
 
 @app.route("/reports")
 @login_required

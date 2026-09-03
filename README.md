@@ -18,6 +18,8 @@ Intelligent Student Life Tracking & Management System, built as a production-sty
 - Productivity score from task completion, study time, attendance, goal progress, and consistency.
 - Study targets, activity streaks, achievements, points, smart recommendations, and budget tracking.
 - Responsive analytics endpoints, Chart.js-ready trend data, PDF reports, and admin announcements.
+- CSV and PDF report downloads, client-side pagination, draggable calendar tasks, and an admin analytics chart.
+- Profile photo upload, password change, JSON data backup/restore, and persistent dark mode.
 
 ## Technology
 
@@ -81,6 +83,8 @@ routes/smart.py         Smart Tracker 2.0 routes, APIs, PDF exports, and announc
 ## Reports and Downloads
 
 After signing in, PDF reports are available at `/reports/overall.pdf`, `/reports/tasks.pdf`, `/reports/study.pdf`, `/reports/attendance.pdf`, `/reports/expenses.pdf`, `/reports/goals.pdf`, and `/reports/productivity.pdf`.
+
+CSV versions use the same paths with a `.csv` extension. Personal JSON backups are available from the Profile page. Tasks can be dragged between calendar dates; only the signed-in user's tasks can be changed.
 
 ## Testing
 

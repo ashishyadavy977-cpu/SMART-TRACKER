@@ -19,12 +19,18 @@ class User(db.Model):
     attendance = db.relationship("Attendance", backref="user", cascade="all, delete-orphan")
     expenses = db.relationship("Expense", backref="user", cascade="all, delete-orphan")
     goals = db.relationship("Goal", backref="user", cascade="all, delete-orphan")
+    profile = db.relationship("UserProfile", backref="user", uselist=False, cascade="all, delete-orphan")
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+
+class UserProfile(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), unique=True, nullable=False)
+    photo_filename = db.Column(db.String(255))
 
 class Task(db.Model):
     id = db.Column(db.Integer, primary_key=True)
