@@ -4,7 +4,7 @@ from flask import Flask, flash, redirect, make_response, render_template, reques
 from werkzeug.utils import secure_filename
 from pathlib import Path
 from config import Config
-from models import Announcement, Attendance, Expense, Goal, Notification, StudySession, Task, User, UserProfile
+from models import Announcement, Assignment, Attendance, Exam, Expense, Goal, Notification, StudySession, Task, User, UserProfile
 from common import db, login_required, parse_date, student_query
 from services import record_score, refresh_notifications, score_label, streaks
 
@@ -58,6 +58,7 @@ def logout():
 @login_required
 def dashboard():
     user = current_user(); tasks = student_query(Task).all(); studies = student_query(StudySession).all(); attendance = student_query(Attendance).all(); expenses = student_query(Expense).all(); goals = student_query(Goal).all()
+    exams = student_query(Exam).filter_by(status="upcoming").order_by(Exam.exam_date, Exam.exam_time).all(); assignments = student_query(Assignment).order_by(Assignment.due_date).all()
     month_start = date.today().replace(day=1)
     total_classes = sum(item.total_classes for item in attendance); attended = sum(item.attended_classes for item in attendance)
     monthly_expenses = sum(item.amount for item in expenses if item.expense_date >= month_start)
@@ -69,7 +70,7 @@ def dashboard():
     previous_month = sum(item.amount for item in expenses if month_start - timedelta(days=31) <= item.expense_date < month_start)
     if previous_month and monthly_expenses > previous_month: recommendations.append("Your spending has increased this month. Review your expense categories.")
     refresh_notifications(user.id); score = record_score(user.id)
-    return render_template("dashboard.html", user=user, tasks=tasks, studies=studies, attendance=attendance, expenses=expenses, goals=goals, today_hours=sum(item.duration for item in studies if item.study_date == date.today()), monthly_expenses=monthly_expenses, attendance_pct=round(attended / total_classes * 100, 1) if total_classes else 0, goal_pct=round(completed_goals), recommendations=recommendations, productivity_score=score, productivity_label=score_label(score), streaks=streaks(user.id), announcements=Announcement.query.filter(Announcement.expiry_date >= date.today()).order_by(Announcement.created_at.desc()).limit(3).all())
+    return render_template("dashboard.html", user=user, tasks=tasks, studies=studies, attendance=attendance, expenses=expenses, goals=goals, exams=exams, assignments=assignments, upcoming_exams=exams[:3], upcoming_assignments=[item for item in assignments if item.status != "submitted"][:3], today_hours=sum(item.duration for item in studies if item.study_date == date.today()), monthly_expenses=monthly_expenses, attendance_pct=round(attended / total_classes * 100, 1) if total_classes else 0, goal_pct=round(completed_goals), recommendations=recommendations, productivity_score=score, productivity_label=score_label(score), streaks=streaks(user.id), announcements=Announcement.query.filter(Announcement.expiry_date >= date.today()).order_by(Announcement.created_at.desc()).limit(3).all())
 
 @app.route("/profile", methods=["GET", "POST"])
 @login_required
@@ -162,6 +163,7 @@ from routes.expenses import expenses_bp
 from routes.goals import goals_bp
 from routes.admin import admin_bp
 from routes.smart import smart_bp
+from routes.exams import exams_bp
 app.register_blueprint(tasks_bp)
 app.register_blueprint(study_bp)
 app.register_blueprint(attendance_bp)
@@ -169,6 +171,7 @@ app.register_blueprint(expenses_bp)
 app.register_blueprint(goals_bp)
 app.register_blueprint(admin_bp)
 app.register_blueprint(smart_bp)
+app.register_blueprint(exams_bp)
 
 with app.app_context():
     db.create_all()

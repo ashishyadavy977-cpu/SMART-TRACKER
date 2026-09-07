@@ -1,5 +1,5 @@
 from datetime import date, datetime, timedelta
-from models import Achievement, Announcement, Attendance, Budget, Expense, Goal, Notification, ProductivityScore, StudySession, StudyTarget, Task
+from models import Achievement, Announcement, Assignment, Attendance, Budget, Exam, Expense, Goal, Notification, ProductivityScore, StudySession, StudyTarget, Task
 from models.models import db
 
 
@@ -40,11 +40,21 @@ def recommendations(user_id):
 
 
 def refresh_notifications(user_id):
-    today = date.today(); existing = {(n.title, n.message) for n in Notification.query.filter_by(user_id=user_id, is_read=False).all()}
+    today = date.today(); existing = {(n.title, n.message) for n in Notification.query.filter_by(user_id=user_id).all()}
     items = []
     for title, message, kind in recommendations(user_id): items.append((title, message, kind))
     for task in Task.query.filter_by(user_id=user_id, status="pending").all():
         if 0 <= (task.due_date - today).days <= 2: items.append(("Task due soon", f"{task.title} is due on {task.due_date.strftime('%d %b %Y')}.", "info"))
+    for exam in Exam.query.filter_by(user_id=user_id, status="upcoming").all():
+        days = (exam.exam_date - today).days
+        if days == 1: items.append(("Exam tomorrow", f"{exam.exam_name} ({exam.subject}) is tomorrow.", "danger"))
+        elif 0 <= days <= 3: items.append(("Exam within 3 days", f"{exam.exam_name} ({exam.subject}) is on {exam.exam_date.strftime('%d %b %Y')}.", "warning"))
+    for assignment in Assignment.query.filter_by(user_id=user_id).all():
+        days = (assignment.due_date - today).days
+        if assignment.status != "submitted" and days < 0:
+            items.append(("Assignment overdue", f"{assignment.title} was due on {assignment.due_date.strftime('%d %b %Y')}.", "danger"))
+        elif assignment.status != "submitted" and days == 1:
+            items.append(("Assignment due tomorrow", f"{assignment.title} is due tomorrow.", "warning"))
     for title, message, kind in items:
         if (title, message) not in existing: db.session.add(Notification(user_id=user_id, title=title, message=message, type=kind))
     db.session.commit()

@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block title %}{{ 'Edit' if exam else 'Add' }} exam{% endblock %}
+{% block heading %}{{ 'Edit exam' if exam else 'Add an exam' }}{% endblock %}
+{% block content %}
+<div class="panel form-panel"><form method="post" class="row g-3">
+  <div class="col-md-6"><label>Subject</label><input class="form-control" name="subject" value="{{ exam.subject if exam else '' }}" required></div>
+  <div class="col-md-6"><label>Exam name</label><input class="form-control" name="exam_name" value="{{ exam.exam_name if exam else '' }}" required></div>
+  <div class="col-md-4"><label>Exam date</label><input class="form-control" type="date" name="exam_date" value="{{ exam.exam_date if exam else today }}" required></div>
+  <div class="col-md-4"><label>Exam time</label><input class="form-control" type="time" name="exam_time" value="{{ exam.exam_time.strftime('%H:%M') if exam and exam.exam_time else '' }}"></div>
+  <div class="col-md-4"><label>Total marks</label><input class="form-control" type="number" min="1" name="total_marks" value="{{ exam.total_marks if exam else '' }}" required></div>
+  <div class="col-md-4"><label>Status</label><select class="form-select" name="status"><option value="upcoming" {{ 'selected' if not exam or exam.status == 'upcoming' }}>Upcoming</option><option value="completed" {{ 'selected' if exam and exam.status == 'completed' }}>Completed</option></select></div>
+  <div class="col-12"><label>Notes</label><textarea class="form-control" name="notes">{{ exam.notes if exam else '' }}</textarea></div>
+  <div><button class="btn btn-dark">Save exam</button> <a class="btn btn-light" href="{{ url_for('exams.list_exams') }}">Cancel</a></div>
+</form></div>
+{% endblock %}

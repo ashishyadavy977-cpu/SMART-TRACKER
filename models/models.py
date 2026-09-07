@@ -19,6 +19,8 @@ class User(db.Model):
     attendance = db.relationship("Attendance", backref="user", cascade="all, delete-orphan")
     expenses = db.relationship("Expense", backref="user", cascade="all, delete-orphan")
     goals = db.relationship("Goal", backref="user", cascade="all, delete-orphan")
+    exams = db.relationship("Exam", backref="user", cascade="all, delete-orphan")
+    assignments = db.relationship("Assignment", backref="user", cascade="all, delete-orphan")
     profile = db.relationship("UserProfile", backref="user", uselist=False, cascade="all, delete-orphan")
 
     def set_password(self, password):
@@ -83,6 +85,29 @@ class Goal(db.Model):
     target_date = db.Column(db.Date, nullable=False)
     progress = db.Column(db.Integer, default=0, nullable=False)
     status = db.Column(db.String(20), default="active", nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+class Exam(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    subject = db.Column(db.String(120), nullable=False)
+    exam_name = db.Column(db.String(180), nullable=False)
+    exam_date = db.Column(db.Date, nullable=False, index=True)
+    exam_time = db.Column(db.Time)
+    total_marks = db.Column(db.Integer, nullable=False)
+    status = db.Column(db.String(20), default="upcoming", nullable=False)
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+class Assignment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    subject = db.Column(db.String(120), nullable=False)
+    title = db.Column(db.String(180), nullable=False)
+    description = db.Column(db.Text)
+    due_date = db.Column(db.Date, nullable=False, index=True)
+    priority = db.Column(db.String(20), default="medium", nullable=False)
+    status = db.Column(db.String(20), default="pending", nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 class Notification(db.Model):

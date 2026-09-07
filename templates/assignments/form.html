@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% block title %}{{ 'Edit' if assignment else 'Add' }} assignment{% endblock %}
+{% block heading %}{{ 'Edit assignment' if assignment else 'Add an assignment' }}{% endblock %}
+{% block content %}
+<div class="panel form-panel"><form method="post" class="row g-3">
+  <div class="col-md-6"><label>Subject</label><input class="form-control" name="subject" value="{{ assignment.subject if assignment else '' }}" required></div>
+  <div class="col-md-6"><label>Title</label><input class="form-control" name="title" value="{{ assignment.title if assignment else '' }}" required></div>
+  <div class="col-md-4"><label>Due date</label><input class="form-control" type="date" name="due_date" value="{{ assignment.due_date if assignment else today }}" required></div>
+  <div class="col-md-4"><label>Priority</label><select class="form-select" name="priority">{% for value in ['low', 'medium', 'high'] %}<option value="{{ value }}" {{ 'selected' if assignment and assignment.priority == value else '' }}>{{ value|capitalize }}</option>{% endfor %}</select></div>
+  <div class="col-md-4"><label>Status</label><select class="form-select" name="status">{% for value in ['pending', 'in progress', 'submitted'] %}<option value="{{ value }}" {{ 'selected' if assignment and assignment.status == value else '' }}>{{ value|capitalize }}</option>{% endfor %}</select></div>
+  <div class="col-12"><label>Description</label><textarea class="form-control" name="description">{{ assignment.description if assignment else '' }}</textarea></div>
+  <div><button class="btn btn-dark">Save assignment</button> <a class="btn btn-light" href="{{ url_for('exams.list_assignments') }}">Cancel</a></div>
+</form></div>
+{% endblock %}
