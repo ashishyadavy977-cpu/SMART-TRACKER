@@ -1,3 +1,3 @@
-from .models import Achievement, Announcement, Assignment, Attendance, Budget, Exam, Expense, Goal, Notification, ProductivityScore, StudySession, StudyTarget, Task, User, UserProfile
+from .models import Achievement, Announcement, Assignment, Attendance, Budget, Exam, Expense, Goal, Note, Notification, ProductivityScore, StudySession, StudyTarget, Task, Timetable, User, UserProfile
 
-__all__ = ["User", "UserProfile", "Task", "StudySession", "Attendance", "Expense", "Goal", "Exam", "Assignment", "Notification", "StudyTarget", "Achievement", "Budget", "Announcement", "ProductivityScore"]
+__all__ = ["User", "UserProfile", "Task", "StudySession", "Attendance", "Expense", "Goal", "Exam", "Assignment", "Timetable", "Note", "Notification", "StudyTarget", "Achievement", "Budget", "Announcement", "ProductivityScore"]

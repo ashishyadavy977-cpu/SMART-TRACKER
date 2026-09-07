@@ -21,6 +21,8 @@ class User(db.Model):
     goals = db.relationship("Goal", backref="user", cascade="all, delete-orphan")
     exams = db.relationship("Exam", backref="user", cascade="all, delete-orphan")
     assignments = db.relationship("Assignment", backref="user", cascade="all, delete-orphan")
+    timetables = db.relationship("Timetable", backref="user", cascade="all, delete-orphan")
+    notes = db.relationship("Note", backref="user", cascade="all, delete-orphan")
     profile = db.relationship("UserProfile", backref="user", uselist=False, cascade="all, delete-orphan")
 
     def set_password(self, password):
@@ -108,6 +110,30 @@ class Assignment(db.Model):
     due_date = db.Column(db.Date, nullable=False, index=True)
     priority = db.Column(db.String(20), default="medium", nullable=False)
     status = db.Column(db.String(20), default="pending", nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+class Timetable(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    day = db.Column(db.String(12), nullable=False, index=True)
+    subject = db.Column(db.String(120), nullable=False)
+    faculty = db.Column(db.String(120))
+    room = db.Column(db.String(60))
+    start_time = db.Column(db.Time, nullable=False)
+    end_time = db.Column(db.Time, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+class Note(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    subject = db.Column(db.String(120), nullable=False, index=True)
+    title = db.Column(db.String(180), nullable=False)
+    description = db.Column(db.Text)
+    filename = db.Column(db.String(255), nullable=False)
+    original_filename = db.Column(db.String(255), nullable=False)
+    file_type = db.Column(db.String(20), nullable=False)
+    file_size = db.Column(db.Integer, nullable=False)
+    is_favorite = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 class Notification(db.Model):

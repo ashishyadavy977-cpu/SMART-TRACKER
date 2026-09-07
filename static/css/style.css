@@ -74,6 +74,7 @@ body.dark-mode{--ink:#edf4ed;--muted:#a4b3a8;--paper:#17231f;--line:#34483d;back
 .dark-mode .table{--bs-table-bg:transparent;--bs-table-color:var(--ink);--bs-table-border-color:var(--line)}
 .dark-mode .table thead{color:#bdcabe}
 .dark-mode .list-row,.dark-mode .notification-row{border-color:var(--line)}
+.assistant-shell{max-width:900px;margin:0 auto}.assistant-messages{min-height:280px;max-height:480px;overflow-y:auto;padding:8px;background:#f7faf4;border:1px solid var(--line);border-radius:10px}.assistant-message{max-width:82%;padding:12px 15px;margin:10px 0;border-radius:12px;font-size:14px}.assistant-message p{white-space:pre-wrap}.assistant-message.assistant{background:#fff;border:1px solid var(--line)}.assistant-message.user{background:var(--ink);color:#fff;margin-left:auto}.prompt-chip{border-color:var(--line)}
 @media (max-width:767.98px){
 	.menu-toggle{display:grid;position:fixed;z-index:1100;left:18px;top:18px;box-shadow:0 6px 18px rgba(23,35,31,.12)}
 	.theme-toggle{right:5%;top:20px;transform:none}

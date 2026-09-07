@@ -12,4 +12,8 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
-    MAX_CONTENT_LENGTH = 5 * 1024 * 1024
+    MAX_CONTENT_LENGTH = 16 * 1024 * 1024
+    AI_API_KEY = os.getenv("AI_API_KEY", "")
+    AI_MODEL = os.getenv("AI_MODEL", "gpt-4o-mini")
+    AI_API_URL = os.getenv("AI_API_URL", "https://api.openai.com/v1/chat/completions")
+    AI_TIMEOUT = int(os.getenv("AI_TIMEOUT", "30"))

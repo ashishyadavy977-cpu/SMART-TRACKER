@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+{% block title %}AI Assistant{% endblock %}
+{% block heading %}AI study assistant{% endblock %}
+{% block content %}
+<div class="row justify-content-center"><div class="col-xl-9"><div class="panel assistant-shell"><div class="d-flex justify-content-between align-items-start mb-4"><div><span class="eyebrow">Smart support</span><h2 class="mb-1">Plan your next move</h2><p class="text-muted mb-0">Ask about your tasks, exams, assignments, timetable, or study routine.</p></div><i class="bi bi-stars fs-2 text-warning"></i></div><div id="assistantMessages" class="assistant-messages" aria-live="polite"><div class="assistant-message assistant"><strong>Smart Tracker Assistant</strong><p class="mb-0">Hi {{ user.name.split(' ')[0] }}. What would you like to organize today?</p></div></div><form id="assistantForm" class="d-flex gap-2 mt-4"><input id="assistantInput" class="form-control" name="message" maxlength="1200" placeholder="e.g. What should I focus on this week?" autocomplete="off" required><button class="btn btn-dark" type="submit"><i class="bi bi-send"></i> Ask</button></form><div id="assistantStatus" class="small text-muted mt-2" role="status"></div><div class="d-flex flex-wrap gap-2 mt-3"><button class="btn btn-sm btn-light prompt-chip" type="button">What is my next deadline?</button><button class="btn btn-sm btn-light prompt-chip" type="button">What classes do I have today?</button><button class="btn btn-sm btn-light prompt-chip" type="button">Help me plan my study time.</button></div></div></div></div>
+{% endblock %}
+{% block scripts %}
+<script>
+const assistantForm = document.getElementById('assistantForm');
+const assistantInput = document.getElementById('assistantInput');
+const assistantMessages = document.getElementById('assistantMessages');
+const assistantStatus = document.getElementById('assistantStatus');
+function addAssistantMessage(text, role) {
+  const wrapper = document.createElement('div');
+  wrapper.className = `assistant-message ${role}`;
+  const paragraph = document.createElement('p');
+  paragraph.className = 'mb-0';
+  paragraph.textContent = text;
+  wrapper.appendChild(paragraph);
+  assistantMessages.appendChild(wrapper);
+  assistantMessages.scrollTop = assistantMessages.scrollHeight;
+}
+async function askAssistant(message) {
+  addAssistantMessage(message, 'user');
+  assistantInput.value = '';
+  assistantStatus.textContent = 'Thinking...';
+  const response = await fetch('{{ url_for("assistant.assistant_ask") }}', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({message})});
+  const data = await response.json();
+  addAssistantMessage(data.answer || 'Something went wrong.', 'assistant');
+  assistantStatus.textContent = data.powered_by_ai ? 'AI-powered response' : 'Smart Tracker stored-data response';
+}
+assistantForm.addEventListener('submit', (event) => { event.preventDefault(); if (assistantInput.value.trim()) askAssistant(assistantInput.value.trim()); });
+document.querySelectorAll('.prompt-chip').forEach((button) => button.addEventListener('click', () => askAssistant(button.textContent)));
+</script>
+{% endblock %}
