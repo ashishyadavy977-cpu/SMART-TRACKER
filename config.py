@@ -13,7 +13,8 @@ class Config:
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024
-    AI_API_KEY = os.getenv("AI_API_KEY", "")
-    AI_MODEL = os.getenv("AI_MODEL", "gpt-4o-mini")
+    AI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("AI_API_KEY", "")
+    AI_PROVIDER = os.getenv("AI_PROVIDER", "openai")
+    AI_MODEL = os.getenv("GEMINI_MODEL") or os.getenv("AI_MODEL", "gpt-4o-mini")
     AI_API_URL = os.getenv("AI_API_URL", "https://api.openai.com/v1/chat/completions")
     AI_TIMEOUT = int(os.getenv("AI_TIMEOUT", "30"))
