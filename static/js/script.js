@@ -8,6 +8,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const topbar = document.querySelector('.topbar');
   if (!sidebar || !topbar) return;
 
+  const analyticsLink = document.createElement('a');
+  analyticsLink.href = '/analytics';
+  analyticsLink.innerHTML = '<i class="bi bi-bar-chart-line"></i> Analytics';
+  const productivityLink = Array.from(sidebar.querySelectorAll('a')).find(link => link.getAttribute('href') === '/productivity');
+  if (productivityLink) productivityLink.before(analyticsLink);
+
   const menuButton = document.createElement('button');
   menuButton.className = 'menu-toggle';
   menuButton.type = 'button';

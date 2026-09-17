@@ -174,6 +174,7 @@ from routes.exams import exams_bp
 from routes.timetable import timetable_bp
 from routes.notes import notes_bp
 from routes.assistant import assistant_bp
+from routes.analytics import analytics_bp
 app.register_blueprint(tasks_bp)
 app.register_blueprint(study_bp)
 app.register_blueprint(attendance_bp)
@@ -185,6 +186,7 @@ app.register_blueprint(exams_bp)
 app.register_blueprint(timetable_bp)
 app.register_blueprint(notes_bp)
 app.register_blueprint(assistant_bp)
+app.register_blueprint(analytics_bp)
 
 with app.app_context():
     db.create_all()
