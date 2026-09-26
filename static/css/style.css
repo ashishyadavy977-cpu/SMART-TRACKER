@@ -107,6 +107,8 @@ body.dark-mode{--ink:#edf4ed;--muted:#a4b3a8;--paper:#17231f;--line:#34483d;back
 	.sidebar .brand{padding:0 10px;font-size:19px}
 	.sidebar nav a,.sidebar-footer a,.sidebar nav a:first-of-type{font-size:14px;justify-content:flex-start;padding:11px 12px}
 	.sidebar nav a i,.sidebar-footer a i,.sidebar nav a:first-of-type i{font-size:16px}
+	.sidebar.is-open nav a,.sidebar.is-open .sidebar-footer a{font-size:14px;justify-content:flex-start;padding:11px 12px}
+	.sidebar.is-open nav a i,.sidebar.is-open .sidebar-footer a i{font-size:16px}
 	.sidebar .badge{display:inline-block}
 	.sidebar-backdrop.is-visible{display:block;position:fixed;inset:0;background:rgba(23,35,31,.42);z-index:1040}
 	.main-content{margin-left:0}
