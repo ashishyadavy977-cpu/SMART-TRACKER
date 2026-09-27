@@ -18,6 +18,8 @@ def _analytics_range():
         return today - timedelta(days=today.weekday()), today
     if preset == "month":
         return today.replace(day=1), today
+    if preset == "year":
+        return today.replace(month=1, day=1), today
     if preset == "last30":
         return today - timedelta(days=29), today
     if preset == "custom":
@@ -30,7 +32,7 @@ def _analytics_range():
 
 def _payload():
     start, end = _analytics_range()
-    return build_analytics(session["user_id"], start, end)
+    return build_analytics(session["user_id"], start, end, request.args.get("subject", "").strip() or None)
 
 
 @analytics_bp.get("/analytics")

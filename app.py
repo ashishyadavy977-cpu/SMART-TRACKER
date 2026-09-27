@@ -4,8 +4,9 @@ from flask import Flask, flash, redirect, make_response, render_template, reques
 from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.utils import secure_filename
 from pathlib import Path
+from sqlalchemy import inspect, text
 from config import Config
-from models import Announcement, Assignment, Attendance, Exam, Expense, Goal, Note, Notification, StudySession, Task, Timetable, User, UserProfile
+from models import Announcement, Assignment, Attendance, Exam, Expense, FocusSession, Goal, Habit, Note, Notification, StudySession, Task, Timetable, User, UserProfile
 from common import db, login_required, parse_date, student_query
 from services import record_score, refresh_notifications, score_label, streaks
 
@@ -64,6 +65,7 @@ def dashboard():
     month_start = date.today().replace(day=1)
     total_classes = sum(item.total_classes for item in attendance); attended = sum(item.attended_classes for item in attendance)
     monthly_expenses = sum(item.amount for item in expenses if item.expense_date >= month_start)
+    focus_today = sum(item.duration_minutes for item in FocusSession.query.filter_by(user_id=user.id, status="completed").filter(FocusSession.mode.in_({"focus", "custom"})).all() if item.completed_at and item.completed_at.date() == date.today())
     completed_goals = sum(item.progress for item in goals) / len(goals) if goals else 0
     recommendations = []
     if total_classes and attended / total_classes < .75: recommendations.append("Your attendance is below 75%. Try attending upcoming classes regularly.")
@@ -72,14 +74,18 @@ def dashboard():
     previous_month = sum(item.amount for item in expenses if month_start - timedelta(days=31) <= item.expense_date < month_start)
     if previous_month and monthly_expenses > previous_month: recommendations.append("Your spending has increased this month. Review your expense categories.")
     refresh_notifications(user.id); score = record_score(user.id)
-    return render_template("dashboard.html", user=user, tasks=tasks, studies=studies, attendance=attendance, expenses=expenses, goals=goals, exams=exams, assignments=assignments, today_classes=today_classes, recent_notes=recent_notes, upcoming_exams=exams[:3], upcoming_assignments=[item for item in assignments if item.status != "submitted"][:3], today_hours=sum(item.duration for item in studies if item.study_date == date.today()), monthly_expenses=monthly_expenses, attendance_pct=round(attended / total_classes * 100, 1) if total_classes else 0, goal_pct=round(completed_goals), recommendations=recommendations, productivity_score=score, productivity_label=score_label(score), streaks=streaks(user.id), announcements=Announcement.query.filter(Announcement.expiry_date >= date.today()).order_by(Announcement.created_at.desc()).limit(3).all())
+    return render_template("dashboard.html", user=user, tasks=tasks, studies=studies, attendance=attendance, expenses=expenses, goals=goals, exams=exams, assignments=assignments, today_classes=today_classes, recent_notes=recent_notes, upcoming_exams=exams[:3], upcoming_assignments=[item for item in assignments if item.status != "submitted"][:3], today_hours=sum(item.duration for item in studies if item.study_date == date.today()), focus_today=focus_today, monthly_expenses=monthly_expenses, attendance_pct=round(attended / total_classes * 100, 1) if total_classes else 0, goal_pct=round(completed_goals), recommendations=recommendations, productivity_score=score, productivity_label=score_label(score), streaks=streaks(user.id), announcements=Announcement.query.filter(Announcement.expiry_date >= date.today()).order_by(Announcement.created_at.desc()).limit(3).all())
 
 @app.route("/profile", methods=["GET", "POST"])
 @login_required
 def profile():
     user = current_user()
     if request.method == "POST":
-        user.name = request.form.get("name", user.name).strip(); user.course = request.form.get("course", user.course).strip(); user.semester = request.form.get("semester", user.semester).strip(); db.session.commit(); flash("Profile updated.", "success"); return redirect(url_for("profile"))
+        email = request.form.get("email", user.email).strip().lower()
+        if not email or User.query.filter(User.email == email, User.id != user.id).first():
+            flash("That email address is already in use or invalid.", "danger")
+        else:
+            user.name = request.form.get("name", user.name).strip(); user.email = email; user.course = request.form.get("course", user.course).strip(); user.semester = request.form.get("semester", user.semester).strip(); user.bio = request.form.get("bio", "").strip(); user.subjects = request.form.get("subjects", "").strip(); user.preferences = request.form.get("preferences", "").strip(); db.session.commit(); flash("Profile updated.", "success"); return redirect(url_for("profile"))
     return render_template("profile.html", user=user)
 
 @app.post("/profile/password")
@@ -175,6 +181,8 @@ from routes.timetable import timetable_bp
 from routes.notes import notes_bp
 from routes.assistant import assistant_bp
 from routes.analytics import analytics_bp
+from routes.habits import habits_bp
+from routes.quiz import quiz_bp
 app.register_blueprint(tasks_bp)
 app.register_blueprint(study_bp)
 app.register_blueprint(attendance_bp)
@@ -187,9 +195,27 @@ app.register_blueprint(timetable_bp)
 app.register_blueprint(notes_bp)
 app.register_blueprint(assistant_bp)
 app.register_blueprint(analytics_bp)
+app.register_blueprint(habits_bp)
+app.register_blueprint(quiz_bp)
 
 with app.app_context():
     db.create_all()
+    existing_columns = {column["name"] for column in inspect(db.engine).get_columns("exam")}
+    for name, definition in {"priority": "VARCHAR(20) NOT NULL DEFAULT 'medium'", "syllabus": "TEXT", "topics": "TEXT NOT NULL DEFAULT '[]'"}.items():
+        if name not in existing_columns:
+            db.session.execute(text(f"ALTER TABLE exam ADD COLUMN {name} {definition}"))
+    existing_columns = {column["name"] for column in inspect(db.engine).get_columns("assignment")}
+    for name, definition in {"file_name": "VARCHAR(255)", "original_file_name": "VARCHAR(255)", "file_type": "VARCHAR(20)", "file_size": "INTEGER"}.items():
+        if name not in existing_columns:
+            db.session.execute(text(f"ALTER TABLE assignment ADD COLUMN {name} {definition}"))
+    existing_columns = {column["name"] for column in inspect(db.engine).get_columns("user")}
+    for name, definition in {"bio": "TEXT", "subjects": "TEXT", "preferences": "TEXT"}.items():
+        if name not in existing_columns:
+            db.session.execute(text(f"ALTER TABLE user ADD COLUMN {name} {definition}"))
+    existing_columns = {column["name"] for column in inspect(db.engine).get_columns("task")}
+    if "subject" not in existing_columns:
+        db.session.execute(text("ALTER TABLE task ADD COLUMN subject VARCHAR(120)"))
+    db.session.commit()
 
 if __name__ == "__main__":
     app.run(debug=True)

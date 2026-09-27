@@ -120,3 +120,5 @@ body.dark-mode{--ink:#edf4ed;--muted:#a4b3a8;--paper:#17231f;--line:#34483d;back
 	.sidebar-backdrop.is-visible{display:block;position:fixed;inset:0;background:rgba(23,35,31,.42);z-index:1040}
 	.main-content{margin-left:0}
 }
+.focus-timer{font:600 clamp(56px,10vw,104px) 'Space Grotesk';letter-spacing:.02em;margin:18px 0}.focus-panel{min-height:420px}.calendar-day a{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media (max-width:767.98px){.focus-panel .btn-group{display:grid;grid-template-columns:1fr 1fr;width:100%}.focus-panel .btn-group .btn{border-radius:6px!important;margin:2px}.focus-panel .d-flex{flex-wrap:wrap}.focus-panel .d-flex .btn{flex:1 1 42%}.calendar-grid{grid-template-columns:1fr}.calendar-day{min-height:78px}}

@@ -1,10 +1,13 @@
 from datetime import datetime, date, timedelta
+from pathlib import Path
+from uuid import uuid4
 
-from flask import Blueprint, flash, redirect, render_template, request, session, url_for
+from flask import Blueprint, current_app, flash, redirect, render_template, request, send_from_directory, session, url_for
 
 from common import db, login_required, parse_date, student_query
 from models import Assignment, Exam
 from services import refresh_notifications
+from werkzeug.utils import secure_filename
 
 exams_bp = Blueprint("exams", __name__)
 
@@ -15,15 +18,16 @@ def _exam_form(exam=None):
     exam_date = parse_date(request.form.get("exam_date"))
     exam_time_value = request.form.get("exam_time", "").strip()
     total_marks_value = request.form.get("total_marks", "").strip()
+    priority = request.form.get("priority", "medium").lower()
     status = request.form.get("status", "upcoming").lower()
-    if not subject or not exam_name or not exam_date or not total_marks_value:
-        flash("Subject, exam name, date, and total marks are required.", "danger")
+    if not subject or not exam_name or not exam_date:
+        flash("Subject, exam name, and date are required.", "danger")
         return None
     try:
-        total_marks = int(total_marks_value)
+        total_marks = int(total_marks_value) if total_marks_value else 0
     except ValueError:
         total_marks = 0
-    if total_marks <= 0 or status not in {"upcoming", "completed"}:
+    if total_marks < 0 or priority not in {"low", "medium", "high"} or status not in {"upcoming", "completed"}:
         flash("Enter valid exam details.", "danger")
         return None
     exam_time = None
@@ -41,6 +45,9 @@ def _exam_form(exam=None):
     exam.exam_time = exam_time
     exam.total_marks = total_marks
     exam.status = status
+    exam.priority = priority
+    exam.syllabus = request.form.get("syllabus", "").strip()
+    exam.set_topics([line.strip() for line in request.form.get("topics", "").splitlines() if line.strip()])
     exam.notes = request.form.get("notes", "").strip()
     return exam
 
@@ -66,6 +73,42 @@ def _assignment_form(assignment=None):
     assignment.priority = priority
     assignment.status = status
     return assignment
+
+
+ALLOWED_ASSIGNMENT_EXTENSIONS = {"pdf", "doc", "docx", "txt", "ppt", "pptx", "xls", "xlsx", "zip", "jpg", "jpeg", "png"}
+MAX_ASSIGNMENT_SIZE = 10 * 1024 * 1024
+
+
+def _assignment_upload_dir(user_id):
+    path = Path(current_app.static_folder) / "uploads" / "assignments" / str(user_id)
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _save_assignment_file(upload, user_id):
+    if not upload or not upload.filename:
+        return None
+    original_name = secure_filename(upload.filename)
+    extension = Path(original_name).suffix.lower().lstrip(".")
+    upload.stream.seek(0, 2)
+    size = upload.stream.tell()
+    upload.stream.seek(0)
+    if not original_name or extension not in ALLOWED_ASSIGNMENT_EXTENSIONS:
+        flash("This file type is not allowed.", "danger")
+        return None
+    if size > MAX_ASSIGNMENT_SIZE:
+        flash("Assignment files must be 10 MB or smaller.", "danger")
+        return None
+    stored_name = f"{uuid4().hex}.{extension}"
+    upload.save(_assignment_upload_dir(user_id) / stored_name)
+    return {"file_name": stored_name, "original_file_name": original_name, "file_type": extension, "file_size": size}
+
+
+def _remove_assignment_file(assignment):
+    if assignment.file_name:
+        path = _assignment_upload_dir(assignment.user_id) / assignment.file_name
+        if path.is_file():
+            path.unlink()
 
 
 @exams_bp.route("/exams")
@@ -122,6 +165,21 @@ def delete_exam(id):
     return redirect(url_for("exams.list_exams"))
 
 
+@exams_bp.post("/exams/<int:id>/topics/<int:topic_index>/toggle")
+@login_required
+def toggle_exam_topic(id, topic_index):
+    exam = student_query(Exam).filter_by(id=id).first_or_404()
+    topics = exam.topic_items
+    if topic_index < 0 or topic_index >= len(topics):
+        flash("That topic does not exist.", "danger")
+    else:
+        topics[topic_index]["completed"] = not bool(topics[topic_index].get("completed"))
+        import json
+        exam.topics = json.dumps(topics)
+        db.session.commit()
+    return redirect(request.referrer or url_for("exams.list_exams"))
+
+
 @exams_bp.route("/assignments")
 @login_required
 def list_assignments():
@@ -154,6 +212,12 @@ def add_assignment():
     if request.method == "POST":
         assignment = _assignment_form()
         if assignment:
+            upload = _save_assignment_file(request.files.get("file"), session["user_id"])
+            if request.files.get("file") and not upload:
+                return render_template("assignments/form.html", assignment=assignment)
+            if upload:
+                for key, value in upload.items():
+                    setattr(assignment, key, value)
             db.session.add(assignment)
             db.session.commit()
             flash("Assignment added.", "success")
@@ -166,6 +230,17 @@ def add_assignment():
 def edit_assignment(id):
     assignment = student_query(Assignment).filter_by(id=id).first_or_404()
     if request.method == "POST" and _assignment_form(assignment):
+        if request.form.get("remove_file") == "1":
+            _remove_assignment_file(assignment)
+            assignment.file_name = assignment.original_file_name = assignment.file_type = None
+            assignment.file_size = None
+        upload = _save_assignment_file(request.files.get("file"), session["user_id"])
+        if request.files.get("file") and not upload:
+            return render_template("assignments/form.html", assignment=assignment)
+        if upload:
+            _remove_assignment_file(assignment)
+            for key, value in upload.items():
+                setattr(assignment, key, value)
         db.session.commit()
         flash("Assignment updated.", "success")
         return redirect(url_for("exams.list_assignments"))
@@ -176,7 +251,18 @@ def edit_assignment(id):
 @login_required
 def delete_assignment(id):
     assignment = student_query(Assignment).filter_by(id=id).first_or_404()
+    _remove_assignment_file(assignment)
     db.session.delete(assignment)
     db.session.commit()
     flash("Assignment deleted.", "success")
     return redirect(url_for("exams.list_assignments"))
+
+
+@exams_bp.get("/assignments/<int:id>/download")
+@login_required
+def download_assignment(id):
+    assignment = student_query(Assignment).filter_by(id=id).first_or_404()
+    if not assignment.file_name:
+        flash("This assignment has no file.", "warning")
+        return redirect(url_for("exams.list_assignments"))
+    return send_from_directory(_assignment_upload_dir(assignment.user_id), assignment.file_name, as_attachment=True, download_name=assignment.original_file_name)

@@ -7,8 +7,12 @@
   <div class="col-md-6"><label>Exam name</label><input class="form-control" name="exam_name" value="{{ exam.exam_name if exam else '' }}" required></div>
   <div class="col-md-4"><label>Exam date</label><input class="form-control" type="date" name="exam_date" value="{{ exam.exam_date if exam else today }}" required></div>
   <div class="col-md-4"><label>Exam time</label><input class="form-control" type="time" name="exam_time" value="{{ exam.exam_time.strftime('%H:%M') if exam and exam.exam_time else '' }}"></div>
-  <div class="col-md-4"><label>Total marks</label><input class="form-control" type="number" min="1" name="total_marks" value="{{ exam.total_marks if exam else '' }}" required></div>
+  <div class="col-md-4"><label>Total marks</label><input class="form-control" type="number" min="0" name="total_marks" value="{{ exam.total_marks if exam else '' }}"></div>
+  <div class="col-md-4"><label>Priority</label><select class="form-select" name="priority">{% for value in ['low', 'medium', 'high'] %}<option value="{{ value }}" {{ 'selected' if exam and exam.priority == value else ('selected' if not exam and value == 'medium') }}>{{ value|capitalize }}</option>{% endfor %}</select></div>
   <div class="col-md-4"><label>Status</label><select class="form-select" name="status"><option value="upcoming" {{ 'selected' if not exam or exam.status == 'upcoming' }}>Upcoming</option><option value="completed" {{ 'selected' if exam and exam.status == 'completed' }}>Completed</option></select></div>
+  <div class="col-12"><label>Syllabus</label><textarea class="form-control" name="syllabus">{{ exam.syllabus if exam else '' }}</textarea></div>
+  <div class="col-12"><label>Topics <small class="text-muted">One topic per line</small></label><textarea class="form-control" name="topics" rows="4">{% if exam %}{% for topic in exam.topic_items %}{{ topic.name }}
+{% endfor %}{% endif %}</textarea></div>
   <div class="col-12"><label>Notes</label><textarea class="form-control" name="notes">{{ exam.notes if exam else '' }}</textarea></div>
   <div><button class="btn btn-dark">Save exam</button> <a class="btn btn-light" href="{{ url_for('exams.list_exams') }}">Cancel</a></div>
 </form></div>

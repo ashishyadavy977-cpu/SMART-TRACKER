@@ -20,6 +20,8 @@
     status.innerHTML = '<i class="bi bi-arrow-repeat"></i> Loading analytics...';
     const query = new URLSearchParams({range: selectedRange});
     if (selectedRange === 'custom') { query.set('start', document.getElementById('startDate').value); query.set('end', document.getElementById('endDate').value); }
+    const subject = document.getElementById('subjectFilter').value;
+    if (subject) query.set('subject', subject);
     try {
       const response = await fetch(`/api/analytics/dashboard?${query}`);
       const data = await response.json();
@@ -34,8 +36,13 @@
   };
   const render = data => {
     const summary = data.summary;
-    const cards = [['Productivity score', `${summary.productivity_score}/100`, 'bi-speedometer2'], ['Study hours', `${oneDecimal(summary.study_hours)} hrs`, 'bi-book'], ['Tasks completed', summary.tasks_completed, 'bi-check2-square'], ['Attendance', `${summary.attendance}%`, 'bi-calendar2-check'], ['Goals completed', summary.goals_completed, 'bi-bullseye'], ['Expenses', money(summary.expenses), 'bi-wallet2']];
-    document.getElementById('summaryCards').innerHTML = cards.map(card => `<div class="col-6 col-xl-2"><div class="metric analytics-metric"><i class="bi ${card[2]}"></i><span>${card[0]}</span><strong>${card[1]}</strong></div></div>`).join('');
+    const cards = [['Productivity score', `${summary.productivity_score}/100`, 'bi-speedometer2'], ['Study hours', `${oneDecimal(summary.study_hours)} hrs`, 'bi-book'], ['Tasks completed', summary.tasks_completed, 'bi-check2-square'], ['Assignments', summary.assignments_completed, 'bi-pencil-square'], ['Exam preparation', `${summary.exam_preparation}%`, 'bi-journal-bookmark'], ['Attendance', `${summary.attendance}%`, 'bi-calendar2-check'], ['Habit consistency', `${summary.habit_consistency}%`, 'bi-arrow-repeat'], ['Focus time', `${summary.focus_minutes} min`, 'bi-stopwatch'], ['Goals completed', summary.goals_completed, 'bi-bullseye'], ['Expenses', money(summary.expenses), 'bi-wallet2']];
+    document.getElementById('summaryCards').innerHTML = cards.map(card => `<div class="col-6 col-xl"><div class="metric analytics-metric"><i class="bi ${card[2]}"></i><span>${card[0]}</span><strong>${card[1]}</strong></div></div>`).join('');
+    const subjectRows = data.subjects.map(item => `<tr><td><strong>${item.subject}</strong></td><td>${oneDecimal(item.study_hours)} hrs</td><td>${item.task_completion}%</td><td>${item.assignment_completion}%</td><td>${item.exam_preparation}%</td><td>${item.attendance}%</td></tr>`).join('');
+    document.getElementById('subjectAnalytics').innerHTML = subjectRows || '<tr><td colspan="6"><div class="empty">No subject records for this range.</div></td></tr>';
+    const subjectFilter = document.getElementById('subjectFilter');
+    const selectedSubject = subjectFilter.value;
+    if (!selectedSubject) { subjectFilter.innerHTML = '<option value="">All subjects</option>' + data.subjects.map(item => `<option value="${item.subject}">${item.subject}</option>`).join(''); }
     const study = data.study;
     setText('studyStat', `${oneDecimal(study.total_hours)} hrs total`);
     setText('studySnapshot', '');
@@ -76,6 +83,7 @@
       if (selectedRange !== 'custom') load();
     }));
     document.getElementById('applyRange').addEventListener('click', load);
+    document.getElementById('subjectFilter').addEventListener('change', load);
     document.getElementById('retryAnalytics').addEventListener('click', load);
     load();
   };

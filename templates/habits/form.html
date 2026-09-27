@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% block title %}{{ 'Edit' if habit else 'Add' }} habit{% endblock %}
+{% block heading %}{{ 'Edit habit' if habit else 'Add a habit' }}{% endblock %}
+{% block content %}
+<div class="panel form-panel"><form method="post" class="row g-3">
+  <div class="col-md-8"><label>Habit name</label><input class="form-control" name="name" value="{{ habit.name if habit else '' }}" required></div>
+  <div class="col-md-4"><label>Color</label><select class="form-select" name="color">{% for value in ['lime', 'blue', 'orange', 'purple'] %}<option value="{{ value }}" {{ 'selected' if habit and habit.color == value else '' }}>{{ value|capitalize }}</option>{% endfor %}</select></div>
+  <div class="col-12"><label>Description</label><textarea class="form-control" name="description">{{ habit.description if habit else '' }}</textarea></div>
+  <div><button class="btn btn-dark">Save habit</button> <a class="btn btn-light" href="{{ url_for('habits.list_habits') }}">Cancel</a></div>
+</form></div>
+{% endblock %}

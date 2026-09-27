@@ -1,7 +1,7 @@
 from calendar import monthrange
 from datetime import date, datetime, timedelta
 
-from models import Attendance, Budget, Exam, Expense, Goal, Note, ProductivityScore, StudySession, Task
+from models import Assignment, Attendance, Budget, Exam, Expense, FocusSession, Goal, Habit, HabitCompletion, Note, ProductivityScore, StudySession, Task
 
 
 PRODUCTIVITY_WEIGHTS = {
@@ -60,7 +60,7 @@ def _activity(items, icon, label, item_date):
     return {"icon": icon, "label": label, "date": item_date.isoformat()}
 
 
-def build_analytics(user_id, start, end):
+def build_analytics(user_id, start, end, subject=None):
     tasks = _date_range(Task.query.filter_by(user_id=user_id), Task.created_at, datetime.combine(start, datetime.min.time()), datetime.combine(end, datetime.max.time())).all()
     all_tasks = Task.query.filter_by(user_id=user_id).all()
     studies = _date_range(StudySession.query.filter_by(user_id=user_id), StudySession.study_date, start, end).all()
@@ -69,6 +69,16 @@ def build_analytics(user_id, start, end):
     goals = Goal.query.filter_by(user_id=user_id).all()
     exams = Exam.query.filter_by(user_id=user_id).all()
     notes = _date_range(Note.query.filter_by(user_id=user_id), Note.created_at, datetime.combine(start, datetime.min.time()), datetime.combine(end, datetime.max.time())).all()
+    assignments = _date_range(Assignment.query.filter_by(user_id=user_id), Assignment.due_date, start, end).all()
+    focus_sessions = _date_range(FocusSession.query.filter_by(user_id=user_id, status="completed").filter(FocusSession.mode.in_({"focus", "custom"})), FocusSession.completed_at, datetime.combine(start, datetime.min.time()), datetime.combine(end, datetime.max.time())).all()
+    habit_completions = HabitCompletion.query.join(Habit).filter(Habit.user_id == user_id, HabitCompletion.completed_date >= start, HabitCompletion.completed_date <= end).all()
+    if subject:
+        tasks = [item for item in tasks if item.subject == subject]
+        all_tasks = [item for item in all_tasks if item.subject == subject]
+        studies = [item for item in studies if item.subject == subject]
+        attendance = [item for item in attendance if item.subject == subject]
+        exams = [item for item in exams if item.subject == subject]
+        assignments = [item for item in assignments if item.subject == subject]
 
     completed_tasks = [task for task in tasks if task.status == "completed"]
     pending_tasks = [task for task in all_tasks if task.status != "completed"]
@@ -117,6 +127,21 @@ def build_analytics(user_id, start, end):
     for expense in expenses:
         expense_categories[expense.category] = expense_categories.get(expense.category, 0) + expense.amount
 
+    assignment_completed = sum(item.status == "submitted" for item in assignments)
+    habit_days = {item.completed_date for item in habit_completions}
+    focus_minutes = sum(item.duration_minutes for item in focus_sessions)
+    subject_names = sorted({item.subject for item in studies} | {item.subject for item in attendance} | {item.subject for item in exams} | {item.subject for item in assignments} | {item.subject for item in all_tasks if item.subject})
+    subject_analytics = []
+    for name in subject_names:
+        subject_study_hours = round(sum(item.duration for item in studies if item.subject == name), 1)
+        subject_attendance_records = [item for item in attendance if item.subject == name]
+        subject_total = sum(item.total_classes for item in subject_attendance_records)
+        subject_attended = sum(item.attended_classes for item in subject_attendance_records)
+        subject_assignments = [item for item in assignments if item.subject == name]
+        subject_exams = [item for item in exams if item.subject == name]
+        subject_tasks = [item for item in all_tasks if item.subject == name]
+        subject_analytics.append({"subject": name, "study_hours": subject_study_hours, "task_completion": round(sum(item.status == "completed" for item in subject_tasks) / len(subject_tasks) * 100, 1) if subject_tasks else 0, "assignment_completion": round(sum(item.status == "submitted" for item in subject_assignments) / len(subject_assignments) * 100, 1) if subject_assignments else 0, "exam_preparation": round(sum(item.preparation_percentage for item in subject_exams) / len(subject_exams), 1) if subject_exams else 0, "attendance": round(subject_attended / subject_total * 100, 1) if subject_total else 0})
+
     budget_record = Budget.query.filter_by(user_id=user_id).first()
     monthly_expenses = sum(item.amount for item in Expense.query.filter_by(user_id=user_id).filter(Expense.expense_date >= date.today().replace(day=1)).all())
     budget_amount = budget_record.monthly_amount if budget_record else 0
@@ -153,13 +178,17 @@ def build_analytics(user_id, start, end):
 
     return {
         "range": {"start": start.isoformat(), "end": end.isoformat(), "days": days},
-        "summary": {"productivity_score": calculate_productivity_score(score_data), "study_hours": round(total_study_hours, 1), "tasks_completed": len(completed_tasks), "attendance": round(attendance_rate * 100, 1), "goals_completed": sum(goal.status == "completed" for goal in goals), "expenses": round(sum(item.amount for item in expenses), 2)},
+        "summary": {"productivity_score": calculate_productivity_score(score_data), "study_hours": round(total_study_hours, 1), "tasks_completed": len(completed_tasks), "assignments_completed": assignment_completed, "attendance": round(attendance_rate * 100, 1), "goals_completed": sum(goal.status == "completed" for goal in goals), "expenses": round(sum(item.amount for item in expenses), 2), "exam_preparation": round(sum(item.preparation_percentage for item in exams) / len(exams), 1) if exams else 0, "habit_consistency": round(len(habit_days) / days * 100, 1), "focus_minutes": focus_minutes},
         "study": {"total_hours": round(total_study_hours, 1), "average_daily_hours": round(total_study_hours / days, 1), "most_studied": max(subject_study, key=subject_study.get, default="None yet"), "least_studied": min(subject_study, key=subject_study.get, default="None yet"), "sessions": len(studies), "trend": {"labels": [day.isoformat() for day in daily_dates], "values": [round(study_by_day[day], 1) for day in daily_dates]}, "subjects": {"labels": list(subject_study), "values": [round(value, 1) for value in subject_study.values()]}},
         "tasks": {"total": len(all_tasks), "completed": len([task for task in all_tasks if task.status == "completed"]), "pending": len(pending_tasks) - len(overdue_tasks), "overdue": len(overdue_tasks), "completion_percentage": round(len([task for task in all_tasks if task.status == "completed"]) / len(all_tasks) * 100, 1) if all_tasks else 0, "high_priority_pending": len(high_priority), "status": {"labels": ["Completed", "Pending", "Overdue"], "values": [len([task for task in all_tasks if task.status == "completed"]), len(pending_tasks) - len(overdue_tasks), len(overdue_tasks)]}, "priorities": {"labels": ["Low", "Medium", "High"], "values": [sum(task.status != "completed" and task.priority == priority for task in all_tasks) for priority in ["low", "medium", "high"]]}},
         "attendance": {"overall_percentage": round(attendance_rate * 100, 1), "total_classes": total_classes, "attended": attended_classes, "missed": max(total_classes - attended_classes, 0), "low_subjects": low_attendance, "subjects": attendance_subjects, "threshold": 75},
         "expenses": {"total": round(sum(item.amount for item in expenses), 2), "current_month": round(monthly_expenses, 2), "average_daily": round(sum(item.amount for item in expenses) / days, 2), "budget": round(budget_amount, 2), "remaining": round(max(budget_amount - monthly_expenses, 0), 2), "budget_used": round(monthly_expenses / budget_amount * 100, 1) if budget_amount else 0, "categories": {"labels": list(expense_categories), "values": [round(value, 2) for value in expense_categories.values()]}, "trend": {"labels": [f"{year}-{month:02d}" for year, month in _month_labels(end)], "values": [round(sum(item.amount for item in Expense.query.filter_by(user_id=user_id).filter(Expense.expense_date >= _month_start(year, month), Expense.expense_date <= date(year, month, monthrange(year, month)[1])).all()), 2) for year, month in _month_labels(end)]}},
         "goals": {"total": len(goals), "active": sum(goal.status == "active" for goal in goals), "completed": sum(goal.status == "completed" for goal in goals), "overdue": sum(goal.status != "completed" and goal.target_date < date.today() for goal in goals), "average_progress": round(sum(goal.progress for goal in goals) / len(goals), 1) if goals else 0, "items": [{"title": goal.title, "progress": goal.progress, "status": goal.status} for goal in goals if goal.status == "active"]},
         "exams": {"upcoming": len(upcoming_exams), "completed": len(completed_exams), "items": [{"name": exam.exam_name, "subject": exam.subject, "date": exam.exam_date.isoformat(), "days_remaining": max((exam.exam_date - date.today()).days, 0), "preparation": round(_clamp(subject_study.get(exam.subject, 0) / 10) * 100, 1)} for exam in sorted(upcoming_exams, key=lambda item: item.exam_date)[:6]]},
+        "assignments": {"total": len(assignments), "completed": assignment_completed, "completion_percentage": round(assignment_completed / len(assignments) * 100, 1) if assignments else 0},
+        "habits": {"completed_days": len(habit_days), "consistency_percentage": round(len(habit_days) / days * 100, 1), "active": Habit.query.filter_by(user_id=user_id).count()},
+        "focus": {"sessions": len(focus_sessions), "minutes": focus_minutes, "daily_minutes": round(focus_minutes / days, 1)},
+        "subjects": subject_analytics,
         "productivity": {"score": calculate_productivity_score(score_data), "weights": PRODUCTIVITY_WEIGHTS, "components": {key: round(value * 100, 1) for key, value in score_data.items()}, "trend": {"labels": [item.recorded_date.isoformat() for item in ProductivityScore.query.filter_by(user_id=user_id).filter(ProductivityScore.recorded_date >= start, ProductivityScore.recorded_date <= end).order_by(ProductivityScore.recorded_date).all()], "values": [item.score for item in ProductivityScore.query.filter_by(user_id=user_id).filter(ProductivityScore.recorded_date >= start, ProductivityScore.recorded_date <= end).order_by(ProductivityScore.recorded_date).all()]}},
         "insights": insights,
         "recent_activity": recent_activity,

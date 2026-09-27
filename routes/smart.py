@@ -3,7 +3,7 @@ from csv import writer
 from io import BytesIO, StringIO
 from flask import Blueprint, jsonify, flash, make_response, redirect, render_template, request, session, url_for
 from common import admin_required, db, login_required, parse_date, student_query
-from models import Achievement, Announcement, Attendance, Budget, Expense, Goal, Notification, ProductivityScore, StudySession, StudyTarget, Task, User
+from models import Achievement, Announcement, Assignment, Attendance, Budget, CalendarEvent, Exam, Expense, FocusSession, Goal, Habit, Notification, ProductivityScore, StudySession, StudyTarget, Task, User
 from services import award, recommendations, record_score, refresh_notifications, score_for, score_label, streaks
 
 smart_bp = Blueprint("smart", __name__)
@@ -18,6 +18,10 @@ def calendar_events():
     events = [{"id": f"task-{x.id}", "title": x.title, "start": x.due_date.isoformat(), "color": "#ef8e55", "url": url_for("tasks.edit_task", task_id=x.id)} for x in student_query(Task).all()]
     events += [{"id": f"goal-{x.id}", "title": f"Goal: {x.title}", "start": x.target_date.isoformat(), "color": "#75873b"} for x in student_query(Goal).all()]
     events += [{"id": f"study-{x.id}", "title": f"Study: {x.subject}", "start": x.study_date.isoformat(), "color": "#4d8c7b"} for x in student_query(StudySession).all()]
+    events += [{"id": f"exam-{x.id}", "title": f"Exam: {x.exam_name}", "start": x.exam_date.isoformat(), "color": "#d94f70", "url": url_for("exams.edit_exam", id=x.id)} for x in student_query(Exam).all()]
+    events += [{"id": f"assignment-{x.id}", "title": f"Assignment: {x.title}", "start": x.due_date.isoformat(), "color": "#e2a45e", "url": url_for("exams.edit_assignment", id=x.id)} for x in student_query(Assignment).all()]
+    events += [{"id": f"habit-{habit.id}-{item.completed_date.isoformat()}", "title": f"Habit: {habit.name}", "start": item.completed_date.isoformat(), "color": "#75873b"} for habit in student_query(Habit).all() for item in habit.completions]
+    events += [{"id": f"event-{x.id}", "title": x.title, "start": x.event_date.isoformat(), "color": "#536dfe", "url": url_for("smart.edit_calendar_event", event_id=x.id)} for x in student_query(CalendarEvent).all()]
     return jsonify(events)
 
 @smart_bp.post("/api/calendar/tasks/<int:task_id>")
@@ -30,6 +34,80 @@ def move_calendar_task(task_id):
     task.due_date = due_date
     db.session.commit()
     return jsonify({"id": task.id, "date": task.due_date.isoformat()})
+
+
+@smart_bp.route("/focus")
+@login_required
+def focus():
+    today = date.today(); week_start = today - timedelta(days=today.weekday())
+    sessions = student_query(FocusSession).filter_by(status="completed").filter(FocusSession.mode.in_({"focus", "custom"})).order_by(FocusSession.completed_at.desc()).all()
+    return render_template("focus.html", tasks=student_query(Task).filter_by(status="pending").all(), assignments=student_query(Assignment).filter(Assignment.status != "submitted").all(), goals=student_query(Goal).filter(Goal.status != "completed").all(), sessions=sessions[:8], completed_sessions=len(sessions), total_focus_minutes=sum(item.duration_minutes for item in sessions), daily_focus_minutes=sum(item.duration_minutes for item in sessions if item.completed_at and item.completed_at.date() == today), weekly_focus_minutes=sum(item.duration_minutes for item in sessions if item.completed_at and item.completed_at.date() >= week_start))
+
+
+@smart_bp.post("/api/focus/complete")
+@login_required
+def complete_focus():
+    payload = request.get_json(silent=True) or request.form
+    try:
+        duration = int(payload.get("duration_minutes", 25))
+    except (TypeError, ValueError):
+        return jsonify({"error": "Duration must be a number."}), 400
+    mode = payload.get("mode", "focus")
+    if duration < 1 or duration > 240 or mode not in {"focus", "short_break", "long_break", "custom"}:
+        return jsonify({"error": "Invalid focus session."}), 400
+    def related_id(name):
+        try: return int(payload.get(name)) if payload.get(name) else None
+        except (TypeError, ValueError): return None
+    item = FocusSession(user_id=session["user_id"], mode=mode, duration_minutes=duration, subject=(payload.get("subject") or "").strip() or None, task_id=related_id("task_id"), assignment_id=related_id("assignment_id"), goal_id=related_id("goal_id"), completed_at=datetime.utcnow(), status="completed")
+    db.session.add(item)
+    if mode in {"focus", "custom"}:
+        db.session.add(Notification(user_id=session["user_id"], title="Focus session completed", message=f"You completed {duration} minutes of focused work.", type="success"))
+    db.session.commit()
+    if mode in {"focus", "custom"}:
+        record_score(session["user_id"])
+    return jsonify({"id": item.id, "message": "Focus session recorded."})
+
+
+def _calendar_event_form(event=None):
+    title = request.form.get("title", "").strip(); event_date = parse_date(request.form.get("event_date"))
+    if not title or not event_date:
+        flash("Event title and date are required.", "danger")
+        return None
+    if event is None:
+        event = CalendarEvent(user_id=session["user_id"])
+    event.title = title; event.event_date = event_date; event.description = request.form.get("description", "").strip(); event.event_type = request.form.get("event_type", "reminder")
+    event_time = request.form.get("event_time", "").strip()
+    try:
+        event.event_time = datetime.strptime(event_time, "%H:%M").time() if event_time else None
+    except ValueError:
+        flash("Enter a valid event time.", "danger")
+        return None
+    return event
+
+
+@smart_bp.route("/calendar/events/add", methods=["GET", "POST"])
+@login_required
+def add_calendar_event():
+    if request.method == "POST":
+        event = _calendar_event_form()
+        if event:
+            db.session.add(event); db.session.commit(); flash("Calendar event added.", "success"); return redirect(url_for("smart.calendar"))
+    return render_template("calendar_event_form.html", event=None)
+
+
+@smart_bp.route("/calendar/events/<int:event_id>/edit", methods=["GET", "POST"])
+@login_required
+def edit_calendar_event(event_id):
+    event = student_query(CalendarEvent).filter_by(id=event_id).first_or_404()
+    if request.method == "POST" and _calendar_event_form(event):
+        db.session.commit(); flash("Calendar event updated.", "success"); return redirect(url_for("smart.calendar"))
+    return render_template("calendar_event_form.html", event=event)
+
+
+@smart_bp.post("/calendar/events/<int:event_id>/delete")
+@login_required
+def delete_calendar_event(event_id):
+    event = student_query(CalendarEvent).filter_by(id=event_id).first_or_404(); db.session.delete(event); db.session.commit(); flash("Calendar event deleted.", "success"); return redirect(url_for("smart.calendar"))
 
 @smart_bp.route("/notifications")
 @login_required
@@ -86,7 +164,10 @@ def budget():
             if not item: item = Budget(user_id=session["user_id"]); db.session.add(item)
             item.monthly_amount = amount; db.session.commit(); flash("Budget updated.", "success"); return redirect(url_for("smart.budget"))
     month_start = date.today().replace(day=1); spent = sum(x.amount for x in student_query(Expense).filter(Expense.expense_date >= month_start).all())
-    return render_template("budget.html", budget=item, spent=spent)
+    percentage = round(spent / item.monthly_amount * 100, 1) if item and item.monthly_amount else 0
+    threshold = 100 if percentage >= 100 else 90 if percentage >= 90 else 75 if percentage >= 75 else 50 if percentage >= 50 else 0
+    refresh_notifications(session["user_id"])
+    return render_template("budget.html", budget=item, spent=spent, percentage=percentage, threshold=threshold, remaining=(item.monthly_amount - spent if item else 0))
 
 @smart_bp.route("/api/analytics")
 @login_required

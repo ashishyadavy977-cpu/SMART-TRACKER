@@ -1,5 +1,5 @@
 from datetime import date, datetime, timedelta
-from models import Achievement, Announcement, Assignment, Attendance, Budget, Exam, Expense, Goal, Notification, ProductivityScore, StudySession, StudyTarget, Task
+from models import Achievement, Announcement, Assignment, Attendance, Budget, CalendarEvent, Exam, Expense, FocusSession, Goal, Habit, Notification, ProductivityScore, StudySession, StudyTarget, Task
 from models.models import db
 
 
@@ -22,11 +22,24 @@ def streaks(user_id):
     studies = {s.study_date for s in StudySession.query.filter_by(user_id=user_id).all()}
     completed = {t.created_at.date() for t in Task.query.filter_by(user_id=user_id, status="completed").all()}
     goals = {g.created_at.date() for g in Goal.query.filter_by(user_id=user_id, status="completed").all()}
+    habits = {item.completed_date for habit in Habit.query.filter_by(user_id=user_id).all() for item in habit.completions}
+    focus = {item.completed_at.date() for item in FocusSession.query.filter_by(user_id=user_id, status="completed").filter(FocusSession.mode.in_({"focus", "custom"})).all() if item.completed_at}
     def run(days):
         count = 0; cursor = date.today()
         while cursor in days: count += 1; cursor -= timedelta(days=1)
         return count
-    return {"study": run(studies), "tasks": run(completed), "goals": run(goals)}
+    activity = studies | completed | habits | focus
+    longest = 0
+    cursor = date.today()
+    while cursor in activity:
+        longest += 1; cursor -= timedelta(days=1)
+    all_dates = sorted(activity)
+    run_length = 0; previous = None
+    for item in all_dates:
+        run_length = run_length + 1 if previous and (item - previous).days == 1 else 1
+        longest = max(longest, run_length); previous = item
+    week_start = date.today() - timedelta(days=date.today().weekday())
+    return {"study": run(studies), "tasks": run(completed), "goals": run(goals), "habits": run(habits), "focus": run(focus), "current": run(activity), "longest": longest, "today": len({"study" if date.today() in studies else None, "tasks" if date.today() in completed else None, "habits" if date.today() in habits else None, "focus" if date.today() in focus else None} - {None}), "week": sum(item >= week_start for item in activity)}
 
 
 def recommendations(user_id):
@@ -55,6 +68,19 @@ def refresh_notifications(user_id):
             items.append(("Assignment overdue", f"{assignment.title} was due on {assignment.due_date.strftime('%d %b %Y')}.", "danger"))
         elif assignment.status != "submitted" and days == 1:
             items.append(("Assignment due tomorrow", f"{assignment.title} is due tomorrow.", "warning"))
+    for habit in Habit.query.filter_by(user_id=user_id).all():
+        if date.today() not in habit.completion_dates():
+            items.append(("Habit reminder", f"Remember to complete {habit.name} today.", "info"))
+    if not StudySession.query.filter_by(user_id=user_id, study_date=today).first():
+        items.append(("Study reminder", "You have not logged a study session today.", "info"))
+    budget = Budget.query.filter_by(user_id=user_id).first()
+    month_start = today.replace(day=1)
+    spent = sum(item.amount for item in Expense.query.filter_by(user_id=user_id).all() if item.expense_date >= month_start)
+    if budget and budget.monthly_amount > 0:
+        percentage = spent / budget.monthly_amount * 100
+        threshold = 100 if percentage >= 100 else 90 if percentage >= 90 else 75 if percentage >= 75 else 50 if percentage >= 50 else 0
+        if threshold:
+            items.append(("Budget alert", f"You have used {threshold}% of your monthly budget.", "danger" if threshold >= 90 else "warning"))
     for title, message, kind in items:
         if (title, message) not in existing: db.session.add(Notification(user_id=user_id, title=title, message=message, type=kind))
     db.session.commit()

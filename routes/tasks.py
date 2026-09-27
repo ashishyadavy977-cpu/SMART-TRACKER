@@ -12,7 +12,7 @@ def task_form(task=None):
         if not title or not due: flash("Title and a valid due date are required.", "danger"); return None
         if priority not in {"high", "medium", "low"} or status not in {"pending", "completed"}: flash("Choose a valid task priority and status.", "danger"); return None
         if task is None: task = Task(user_id=session["user_id"])
-        task.title = title; task.description = request.form.get("description", "").strip(); task.priority = priority; task.due_date = due; task.status = status
+        task.title = title; task.subject = request.form.get("subject", "").strip() or None; task.description = request.form.get("description", "").strip(); task.priority = priority; task.due_date = due; task.status = status
         return task
     return task
 
